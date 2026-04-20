@@ -16,7 +16,6 @@ export default async function handler(req, res) {
               'player_name', p.name,
               'player_avatar', p.avatar,
               'score', gr.score,
-              'wind', gr.wind,
               'rank', gr.rank
             ) ORDER BY gr.rank ASC NULLS LAST
           ) AS results
@@ -35,7 +34,6 @@ export default async function handler(req, res) {
 
   if (req.method === "POST") {
     const { results, notes, played_at } = req.body;
-    // results: [{ player_id, score, wind, rank }]
     if (!results || results.length < 2) {
       return res.status(400).json({ error: "At least 2 player results required" });
     }
@@ -60,6 +58,40 @@ export default async function handler(req, res) {
       }
 
       return res.status(201).json({ success: true, game_id: game.id });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  if (req.method === "PUT") {
+    const { id } = req.query;
+    const { results, notes, played_at } = req.body;
+
+    if (!results || results.length < 2) {
+      return res.status(400).json({ error: "At least 2 player results required" });
+    }
+
+    const total = results.reduce((sum, r) => sum + (parseInt(r.score) || 0), 0);
+    if (total !== 0) {
+      return res.status(400).json({ error: `Scores must sum to 0 (got ${total})` });
+    }
+
+    try {
+      await sql`
+        UPDATE games SET notes = ${notes || null}, played_at = ${played_at}
+        WHERE id = ${id}
+      `;
+
+      await sql`DELETE FROM game_results WHERE game_id = ${id}`;
+
+      for (const r of results) {
+        await sql`
+          INSERT INTO game_results (game_id, player_id, score, rank)
+          VALUES (${id}, ${r.player_id}, ${r.score}, ${r.rank || null})
+        `;
+      }
+
+      return res.status(200).json({ success: true });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
