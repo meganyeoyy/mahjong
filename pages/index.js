@@ -227,6 +227,122 @@ function LogGameModal({ players, onClose, onLogged }) {
   );
 }
 
+// ── Edit Game Modal ────────────────────────────────────────
+function EditGameModal({ game, players, onClose, onSaved }) {
+  // Pre-fill scores from existing game results
+  const [scores, setScores] = useState(() =>
+    players.map(p => {
+      const existing = (game.results || []).find(r => r.player_id === p.id);
+      return {
+        player_id: p.id,
+        name: p.name,
+        avatar: p.avatar,
+        score: existing ? String(existing.score) : '',
+      };
+    })
+  );
+  const [notes, setNotes] = useState(game.notes || '');
+  const [date, setDate] = useState(() => {
+    try { return new Date(game.played_at).toISOString().slice(0, 16); }
+    catch { return new Date().toISOString().slice(0, 16); }
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  function updateScore(idx, val) {
+    setScores(s => s.map((r, i) => i === idx ? { ...r, score: val } : r));
+  }
+
+  const filledScores = scores.filter(s => s.score !== '');
+  const sum = filledScores.reduce((acc, s) => acc + (parseInt(s.score) || 0), 0);
+  const sumOk = filledScores.length >= 2 && sum === 0;
+  const sumColor = filledScores.length < 2 ? 'var(--text-muted)' : sumOk ? 'var(--jade-light)' : 'var(--red-light)';
+
+  async function submit() {
+    if (filledScores.length < 2) return setError('Enter scores for at least 2 players');
+    if (sum !== 0) return setError(`Scores must add up to 0 (currently ${sum > 0 ? '+' : ''}${sum})`);
+
+    const results = filledScores
+      .map(s => ({ ...s, score: parseInt(s.score) }))
+      .filter(s => !isNaN(s.score))
+      .sort((a, b) => b.score - a.score)
+      .map((s, i) => ({ player_id: s.player_id, score: s.score, rank: i + 1 }));
+
+    setLoading(true);
+    setError('');
+    try {
+      await apiFetch(`/api/games?id=${game.id}`, {
+        method: 'PUT',
+        body: { results, notes: notes.trim() || null, played_at: new Date(date).toISOString() },
+      });
+      onSaved();
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-title">✏️ Edit Game <span style={{ fontSize: 14, color: 'var(--text-dim)', fontFamily: 'DM Mono' }}>#{game.id}</span></div>
+        {error && <div className="alert alert-error">{error}</div>}
+
+        <div className="form-group">
+          <label className="form-label">Date & Time</label>
+          <input className="form-input" type="datetime-local" value={date} onChange={e => setDate(e.target.value)} />
+        </div>
+
+        <div className="form-group">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label className="form-label" style={{ margin: 0 }}>Scores (leave blank to exclude)</label>
+            <div style={{ fontSize: 12, color: sumColor, display: 'flex', alignItems: 'center', gap: 6, transition: 'color 0.2s' }}>
+              {filledScores.length >= 2 && (
+                <><span>Sum:</span><span style={{ fontWeight: 600 }}>{sum > 0 ? '+' : ''}{sum}</span><span>{sumOk ? '✓' : '✗'}</span></>
+              )}
+            </div>
+          </div>
+          <div className="score-inputs">
+            {scores.map((r, i) => (
+              <div className="score-row" key={r.player_id}>
+                <span style={{ fontSize: 22 }}>{r.avatar}</span>
+                <span className="score-player-name">{r.name}</span>
+                <input
+                  className="form-input"
+                  style={{ margin: 0 }}
+                  type="number"
+                  placeholder="e.g. +32000"
+                  value={r.score}
+                  onChange={e => updateScore(i, e.target.value)}
+                />
+              </div>
+            ))}
+          </div>
+          {filledScores.length >= 2 && !sumOk && (
+            <div style={{ fontSize: 12, color: 'var(--red-light)', marginTop: 8 }}>
+              Adjust by {sum > 0 ? `-${sum}` : `+${Math.abs(sum)}`} total.
+            </div>
+          )}
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Notes (optional)</label>
+          <textarea className="form-input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. CNY 2025, Grandma's house…" />
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={submit} disabled={loading || (filledScores.length >= 2 && !sumOk)}>
+            {loading ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ───────────────────────────────────────────────
 export default function Home() {
   const [tab, setTab] = useState('leaderboard');
@@ -237,6 +353,7 @@ export default function Home() {
   const [initialized, setInitialized] = useState(false);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [showLogGame, setShowLogGame] = useState(false);
+  const [editingGame, setEditingGame] = useState(null);
   const [initError, setInitError] = useState('');
 
   // Init DB on first load
@@ -425,6 +542,7 @@ export default function Home() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <div className="game-id">#{g.id}</div>
+                          <button className="btn btn-secondary btn-sm" onClick={() => setEditingGame(g)}>Edit</button>
                           <button className="btn btn-danger" onClick={() => deleteGame(g.id)}>Delete</button>
                         </div>
                       </div>
@@ -502,6 +620,14 @@ export default function Home() {
           players={players}
           onClose={() => setShowLogGame(false)}
           onLogged={refresh}
+        />
+      )}
+      {editingGame && (
+        <EditGameModal
+          game={editingGame}
+          players={players}
+          onClose={() => setEditingGame(null)}
+          onSaved={refresh}
         />
       )}
     </>
