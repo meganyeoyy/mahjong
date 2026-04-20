@@ -537,7 +537,7 @@ body {
 
 .score-row {
   display: grid;
-  grid-template-columns: 44px 1fr 100px 80px;
+  grid-template-columns: 44px 1fr 120px;
   align-items: center;
   gap: 12px;
   background: var(--surface2);
@@ -635,7 +635,6 @@ body {
   .player-row { grid-template-columns: 32px 40px 1fr auto; }
   .player-stat:not(:first-of-type) { display: none; }
   .score-row { grid-template-columns: 36px 1fr 90px; }
-  .score-row .wind-select { display: none; }
   .modal { padding: 24px 20px; }
 }
 

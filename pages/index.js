@@ -3,7 +3,6 @@ import Head from 'next/head';
 import { format, parseISO } from 'date-fns';
 
 const AVATARS = ['🀄', '🐉', '🦁', '🐼', '🦊', '🐯', '🦅', '🌸', '⚡', '🌙', '🔥', '💎'];
-const WINDS = ['East', 'South', 'West', 'North'];
 
 // ── helpers ──────────────────────────────────────────────
 async function apiFetch(url, opts = {}) {
@@ -97,7 +96,7 @@ function AddPlayerModal({ onClose, onAdded }) {
 // ── Log Game Modal ─────────────────────────────────────────
 function LogGameModal({ players, onClose, onLogged }) {
   const [scores, setScores] = useState(() =>
-    players.map(p => ({ player_id: p.id, name: p.name, avatar: p.avatar, score: '', wind: '' }))
+    players.map(p => ({ player_id: p.id, name: p.name, avatar: p.avatar, score: '' }))
   );
   const [notes, setNotes] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 16));
@@ -107,22 +106,21 @@ function LogGameModal({ players, onClose, onLogged }) {
   function updateScore(idx, val) {
     setScores(s => s.map((r, i) => i === idx ? { ...r, score: val } : r));
   }
-  function updateWind(idx, val) {
-    setScores(s => s.map((r, i) => i === idx ? { ...r, wind: val } : r));
-  }
+
+  // Live sum of all filled-in scores
+  const filledScores = scores.filter(s => s.score !== '');
+  const sum = filledScores.reduce((acc, s) => acc + (parseInt(s.score) || 0), 0);
+  const sumOk = filledScores.length >= 2 && sum === 0;
 
   async function submit() {
-    const filled = scores.filter(s => s.score !== '' && s.score !== undefined);
-    if (filled.length < 2) return setError('Enter scores for at least 2 players');
+    if (filledScores.length < 2) return setError('Enter scores for at least 2 players');
+    if (sum !== 0) return setError(`Scores must add up to 0 (currently ${sum > 0 ? '+' : ''}${sum})`);
 
-    // Build ranked results
-    const results = filled
+    const results = filledScores
       .map(s => ({ ...s, score: parseInt(s.score) }))
       .filter(s => !isNaN(s.score))
       .sort((a, b) => b.score - a.score)
-      .map((s, i) => ({ player_id: s.player_id, score: s.score, wind: s.wind || null, rank: i + 1 }));
-
-    if (results.length < 2) return setError('Enter valid numeric scores for at least 2 players');
+      .map((s, i) => ({ player_id: s.player_id, score: s.score, rank: i + 1 }));
 
     setLoading(true);
     setError('');
@@ -139,6 +137,12 @@ function LogGameModal({ players, onClose, onLogged }) {
       setLoading(false);
     }
   }
+
+  const sumColor = filledScores.length < 2
+    ? 'var(--text-muted)'
+    : sumOk
+      ? 'var(--jade-light)'
+      : 'var(--red-light)';
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -157,7 +161,28 @@ function LogGameModal({ players, onClose, onLogged }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Scores (leave blank to exclude)</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label className="form-label" style={{ margin: 0 }}>Scores (leave blank to exclude)</label>
+            <div style={{
+              fontSize: 12,
+              fontFamily: 'var(--font-mono)',
+              color: sumColor,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              transition: 'color 0.2s',
+            }}>
+              {filledScores.length >= 2 && (
+                <>
+                  <span>Sum:</span>
+                  <span style={{ fontWeight: 600 }}>
+                    {sum > 0 ? '+' : ''}{sum}
+                  </span>
+                  <span>{sumOk ? '✓' : '✗'}</span>
+                </>
+              )}
+            </div>
+          </div>
           <div className="score-inputs">
             {scores.map((r, i) => (
               <div className="score-row" key={r.player_id}>
@@ -167,17 +192,18 @@ function LogGameModal({ players, onClose, onLogged }) {
                   className="form-input"
                   style={{ margin: 0 }}
                   type="number"
-                  placeholder="Score"
+                  placeholder="e.g. +32000"
                   value={r.score}
                   onChange={e => updateScore(i, e.target.value)}
                 />
-                <select className="wind-select" value={r.wind} onChange={e => updateWind(i, e.target.value)}>
-                  <option value="">Wind</option>
-                  {WINDS.map(w => <option key={w} value={w}>{w}</option>)}
-                </select>
               </div>
             ))}
           </div>
+          {filledScores.length >= 2 && !sumOk && (
+            <div style={{ fontSize: 12, color: 'var(--red-light)', marginTop: 8 }}>
+              Scores must sum to 0. Adjust by {sum > 0 ? `-${sum}` : `+${Math.abs(sum)}`} total.
+            </div>
+          )}
         </div>
 
         <div className="form-group">
@@ -192,7 +218,7 @@ function LogGameModal({ players, onClose, onLogged }) {
 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={submit} disabled={loading}>
+          <button className="btn btn-primary" onClick={submit} disabled={loading || (filledScores.length >= 2 && !sumOk)}>
             {loading ? 'Saving…' : 'Save Game'}
           </button>
         </div>
@@ -408,7 +434,6 @@ export default function Home() {
                             <div className="result-rank">#{r.rank}</div>
                             <div className="result-info">
                               <div className="result-name">{r.player_avatar} {r.player_name}</div>
-                              {r.wind && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{r.wind}</div>}
                             </div>
                             <div className={`result-score${r.score < 0 ? ' negative' : ''}`}>
                               {r.score > 0 ? '+' : ''}{r.score.toLocaleString()}

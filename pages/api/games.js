@@ -40,6 +40,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "At least 2 player results required" });
     }
 
+    const total = results.reduce((sum, r) => sum + (parseInt(r.score) || 0), 0);
+    if (total !== 0) {
+      return res.status(400).json({ error: `Scores must sum to 0 (got ${total})` });
+    }
+
     try {
       const [game] = await sql`
         INSERT INTO games (notes, played_at)
@@ -49,8 +54,8 @@ export default async function handler(req, res) {
 
       for (const r of results) {
         await sql`
-          INSERT INTO game_results (game_id, player_id, score, wind, rank)
-          VALUES (${game.id}, ${r.player_id}, ${r.score}, ${r.wind || null}, ${r.rank || null})
+          INSERT INTO game_results (game_id, player_id, score, rank)
+          VALUES (${game.id}, ${r.player_id}, ${r.score}, ${r.rank || null})
         `;
       }
 
