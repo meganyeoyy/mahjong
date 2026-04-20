@@ -232,7 +232,7 @@ function EditGameModal({ game, players, onClose, onSaved }) {
   // Pre-fill scores from existing game results
   const [scores, setScores] = useState(() =>
     players.map(p => {
-      const existing = (game.results || []).find(r => r.player_id === p.id);
+      const existing = (game.results || []).find(r => Number(r.player_id) === Number(p.id));
       return {
         player_id: p.id,
         name: p.name,
