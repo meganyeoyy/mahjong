@@ -87,7 +87,7 @@ export default async function handler(req, res) {
       for (const r of results) {
         await sql`
           INSERT INTO game_results (game_id, player_id, score, rank)
-          VALUES (${id}, ${r.player_id}, ${r.score}, ${r.rank || null})
+          VALUES (${id}, ${parseInt(r.player_id)}, ${r.score}, ${r.rank || null})
         `;
       }
 
