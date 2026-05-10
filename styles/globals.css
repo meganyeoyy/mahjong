@@ -692,3 +692,14 @@ textarea.form-input {
   color: var(--gold-light);
   border-bottom-color: var(--gold);
 }
+
+/* Score always visible inline on mobile */
+.player-score-inline {
+  color: var(--gold-light);
+}
+
+@media (min-width: 769px) {
+  .player-score-inline {
+    display: none; /* desktop already shows the separate stat columns */
+  }
+}
