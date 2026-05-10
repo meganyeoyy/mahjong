@@ -503,7 +503,10 @@ export default function Home() {
                         <div className="player-avatar">{p.avatar}</div>
                         <div>
                           <div className="player-name">{p.name}</div>
-                          <div className="player-games">{p.games_played} game{p.games_played !== 1 ? 's' : ''}</div>
+                          <div className="player-games">
+                            {p.games_played} game{p.games_played !== 1 ? 's' : ''}
+                            <span className="player-score-inline"> · {parseInt(p.total_score || 0) > 0 ? '+' : ''}{parseInt(p.total_score || 0).toLocaleString()} pts</span>
+                          </div>
                         </div>
                         <div className="player-stat">
                           <div className="player-stat-value">{parseInt(p.total_score || 0).toLocaleString()}</div>
